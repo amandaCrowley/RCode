@@ -1,0 +1,21 @@
+#setwd("E:/INFT3940 - IT Applications/Assignment2")
+setwd("C:/Users/slaye/Documents/Uni/INFT3940 - IT Applications/Assignment 2")
+arrestData <- read.csv("Strategic_Subject_List.csv", header=TRUE)
+
+#Subset data frame by removing all columns except for the following
+arrestData <- arrestData[ , c("PREDICTOR.RAT.GANG.AFFILIATION","SEX.CODE.CD","RACE.CODE.CD", "DOMESTIC.ARR.CNT", "NARCOTICS.ARR.CNT", "WEAPONS.ARR.CNT", "LATEST.DIST.RES","PREDICTOR.RAT.VICTIM.SHOOTING.INCIDENTS", "PREDICTOR.RAT.VICTIM.BATTERY.OR.ASSAULT",
+"PREDICTOR.RAT.ARRESTS.VIOLENT.OFFENSES", "PREDICTOR.RAT.AGE.AT.LATEST.ARREST")]
+
+#rename columns
+colnames(arrestData) <- c("Gang_Affiliation", "Gender", "Race", "Domestic_Arrest_Count", "Narcotics_Arrest_Count", "Weapons_Arrest_Count", "Latest_Residence_District", "Victim_Shooting_Count",
+ "Victim_Assault_Count", "Violent_Offense_Count","Age_Group")
+
+#Replace NA's with a value of 0 - as all columms with NA's are count columns so makes sense to have a value of 0
+arrestData[is.na(arrestData)] <- 0
+
+#Remove the 102 rows in which age group is missing
+arrestData <-arrestData[!(arrestData$Age_Group==""),]
+
+#Save the data frame to disk as a csv
+write.csv(arrestData, file = "RevisedArrestData.csv")
+

@@ -1,0 +1,114 @@
+﻿---------------------------
+Question 1 
+---------------------------
+setwd("C:/Users/slaye/Documents/Uni/INFT3940 - IT Applications/Assignment 1 - Part B/Native_and_foreign-born_population")
+UNdata_df <- read.csv("UNdata_Export_20170909_084230668.csv", header=TRUE)
+
+#Remove 11th column value.footnotes as it is not needed
+UNdata_df <- UNdata_df[,-11]
+
+#Remove 7th, 8th and 9th columns: Record.Type, reliability and source.year   
+UNdata_df <- UNdata_df[,-7:-9]
+
+#Also remove footnote rows at the end of the data frame
+UNdata_df <- UNdata_df[-51786:-51855,]
+
+library(dplyr)
+##### Find the 20 most populous countries ####
+#Create a data frame with all rows containing the totals from the UNdata_df data frame
+largestCountries <- filter(UNdata_df, Area == "Total", Sex == "Both Sexes", Age =="Total", Native.or.foreign.born=="Total")
+#Sort the data using Value column (the - sybmbol denotes descending order)
+largestCountries <- largestCountries[order(-largestCountries$Value),]
+#Removes duplicated country rows
+largestCountries <- largestCountries[!duplicated(largestCountries$Country.or.Area),]
+#Now we have the 20 most populous countries (data frame sorted by value so the top 20 rows in this data frame contain the names of the top 20 countries with the highest population)
+largestCountries <- rbind(head(largestCountries, n =20))
+
+#Now the UNdata frame only contains the details of the 20 most populous countries - now need to filter out duplicate years
+UNdata_df <- UNdata_df[UNdata_df$Country.or.Area %in% largestCountries$Country.or.Area,]
+
+##### Find the latest year for the 20 most populous countries ####
+#Create another data frame with all rows containing the totals
+latestCountries <- filter(UNdata_df, Area == "Total", Sex == "Both Sexes", Age =="Total", Native.or.foreign.born=="Total")
+#Change the year column to a number(Instead of a factor) so it can be sorted in descending order
+latestCountries$Year <- as.numeric(as.character(latestCountries$Year))
+#Sort Country and Year columns
+latestCountries = latestCountries[order(latestCountries$Country.or.Area, -latestCountries[,'Year']),]
+#Remove duplicated rows (Will keep the first instance of that country, as it is sorted by year this will be the latest year)
+latestCountries <- latestCountries[!duplicated(latestCountries$Country.or.Area),]
+#Match the 1st 2 columns in UNdata_df with the first 2 columns in latestCountries (i.e. country name and the latest year)
+UNdata_df <- UNdata_df[paste(UNdata_df$Country.or.Area,UNdata_df$Year,sep=":") %in% paste(latestCountries$Country.or.Area,latestCountries$Year,sep=":"),]
+
+#Now the UNdata data frame contains the latest data for the most populous countries
+
+#Remove rows with unknown and native population - leaving just the total values and foreign-born values
+UNdata_df <-UNdata_df[!(UNdata_df$Native.or.foreign.born=="Unknown"),]
+UNdata_df <-UNdata_df[!(UNdata_df$Native.or.foreign.born=="Native"),]
+
+#Also remove rows where the area is not equal to the total (South Africa has rural and urban values as well as total)
+UNdata_df <-UNdata_df[!(UNdata_df$Area!="Total"),]
+
+#Calculate the percentage of foreign born using the total population
+UNdata_df <- mutate(UNdata_df, Percentage = Value/lag(Value)*100)
+#Round the percentage
+UNdata_df$Percentage <- round(UNdata_df$Percentage, 2)
+
+#Remove the rows with Total population in them as we no longer need this info
+UNdata_df <-UNdata_df[!(UNdata_df$Native.or.foreign.born=="Total"),] 
+
+#Remove the Area and Native.or.foreign.born columns
+UNdata_df <- subset(UNdata_df, select = -c(Area,Year,Native.or.foreign.born) )
+
+#Remove the largestCountries and latestCountries data frames which are no longer needed
+rm(largestCountries)
+rm(latestCountries)
+
+#rename columns
+colnames(UNdata_df) <- c("Country", "Gender", "Age_group", "Total_Foreign_Born", "Percentage_Foreign_Born")
+
+#Save the data frame to disk as a csv
+write.csv(UNdata_df, file = "UNdata_ForeignBorn.csv")
+
+############################################################
+Plotting 
+############################################################
+
+library(ggplot2)
+#Plot Total percentage of foreign-born in top 20 most populous countries
+#Make temporary data frame containing total data for males and females (exluding both sexes values)
+temp_df <- subset(UNdata_df, Gender!="Both Sexes" & Age_group=="Total")
+#Shorten UK name - displays better on the graphs
+levels(temp_df$Country)[levels(temp_df$Country)=="United Kingdom of Great Britain and Northern Ireland"] <- "UK & Northern Ireland"
+
+##Stacked Bar chart - Top 20 most populous Countries by foreign born
+g <- ggplot(temp_df, aes(x = Country, y = Percentage_Foreign_Born,fill=Gender)) +
+geom_bar(stat='identity')
+g <- g + theme(axis.text.x=element_text(angle = -45, hjust = 0))
+#Set axis labels + plot title
+g <- g  + ggtitle("Percentage of foreign-born in top 20 most populous countries")
+g <- g + xlab("Country")
+g <- g + ylab("Population (%)")
+g
+rm(temp_df)
+ggsave(filename="PercentageForeignBornCountry.pdf", plot=g)
+
+##Facets - Percentage of forgeign born per age group
+#Make temporary data frame containing data for both sexes excluding age groups total and unkown values (Include thailand separately as it contains only total age group) 
+temp_df <- subset(UNdata_df, Gender=="Both Sexes" & Age_group!="Total" & Age_group!="Unknown" | Country =="Thailand" & Gender=="Both Sexes")
+#Shorten UK name - displays better in the plot
+levels(temp_df$Country)[levels(temp_df$Country)=="United Kingdom of Great Britain and Northern Ireland"] <- "UK & Northern Ireland"
+
+#X axis labels - Age group
+labels <- c("0", "10 - 14", "20 - 24", "30 - 34", "40 - 44", "50 - 54","60 - 64","70 - 74","80 - 84","90 - 94")
+g <- ggplot(temp_df, aes(x = Age_group, y = Percentage_Foreign_Born))
+g <- g + geom_point()
+g <- g + facet_wrap( ~ Country, ncol=4, scales="free_y")
+g <- g + scale_x_discrete(breaks=labels, labels=as.character(labels))
+g <- g + theme(axis.text.x=element_text(angle = -45, hjust = 0))
+#Set axis labels + plot title
+g <- g  + ggtitle("Percentage of foreign-born by age group in the top 20 most populous countries")
+g <- g + xlab("Age group")
+g <- g + ylab("Population (%)")
+g
+rm(temp_df)
+ggsave(filename="PercentageForeignBornAgeGroups.pdf", plot=g)

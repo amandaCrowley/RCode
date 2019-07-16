@@ -1,0 +1,149 @@
+---------------------------------
+Question 1
+---------------------------------
+library(maps)
+map("world", xlim = c(132, 180), ylim=c(-44,-13), fill=TRUE, col='green', bg = "lightblue", mar=c(0,0,0,0))
+box()
+rect(152,-43,170,-20)
+
+---------------------------------
+Question 2
+---------------------------------
+
+input_directory <- file.path("C:", "Users", "slaye", "Documents", "Uni", "INFT3940 - IT Applications", "Assignment 1 - Part A", "monthly_maps")
+
+#create the data frames
+yearly_temps <- NULL
+yearly_temps <- data.frame(year = character(), SST = numeric())
+
+monthly_temps <- NULL
+monthly_temps <- data.frame(year = character(), month = character(), mean_SST = numeric())
+
+#Loop through years (1957 to 2016) and months to find monthly and yearly means then add to data frames
+for(year in 1957:2016){
+    yearly_mean <- 0
+	for(month in 1:12){
+		file_name <- as.character(paste(input_directory, "/", "td_", year, "_", month, ".csv", sep = ""))
+		temp_df <- read.csv(file_name, header = TRUE)
+
+		#drop 1st column in data frame - contains latitude values
+		temp_df <- temp_df[,-1]
+
+		#unlist the temp_df - to not include the NA's, then assign the mean for each month to the monthly_temps data frame
+		mean_SST <- mean(unlist(temp_df), na.rm = TRUE)
+		monthly_temps <- rbind(monthly_temps, data.frame(year, month, mean_SST ))
+
+		#Add each mean (for the month), the total of all the added monthly means divided by 12 will equal the yearly mean
+		yearly_mean <- yearly_mean + mean_SST
+	}
+	yearly_mean <- yearly_mean / 12
+	yearly_temps <- rbind(yearly_temps, data.frame(row.names = NULL, year, yearly_mean))
+}
+
+----------------------------------------
+Question 3
+----------------------------------------
+
+write.csv(monthly_temps, file = "monthly_temps.csv")
+write.csv(yearly_temps, file = "yearly_temps.csv")
+
+----------------------------------------
+Question 4a
+----------------------------------------
+
+input_directory <- file.path("C:", "Users", "slaye", "Documents", "Uni", "INFT3940 - IT Applications", "Assignment 1 - Part A")
+input_file <- as.character(paste(input_directory, "/", "yearly_temps.csv", sep=""))
+yearly_temps <- read.csv(input_file, header = TRUE)
+
+library(ggplot2)
+yearly_Plot <- ggplot(data=yearly_temps, aes(x=year, y=yearly_mean))
+#Add points to plot
+yearly_Plot <- yearly_Plot + geom_point(size=2)
+#Add regression curve to plot
+yearly_Plot <- yearly_Plot + geom_smooth(method='loess')
+
+#Set axis labels + plot title
+yearly_Plot <- yearly_Plot  + ggtitle("Mean SST by year")
+yearly_Plot <- yearly_Plot + xlab("Year")
+yearly_Plot <- yearly_Plot + ylab("Mean Temperature (C)")
+
+#Change interval on x axis
+yearly_Plot <- yearly_Plot + scale_x_continuous(breaks = seq(1955, 2015, by=5))
+yearly_Plot
+
+#Save plot to disk in PDF format
+ggsave(filename="yearly_plot.pdf", plot=yearly_Plot)
+
+-----------------------------------------
+Question 4b
+-----------------------------------------
+
+input_directory <- file.path("C:", "Users", "slaye", "Documents", "Uni", "INFT3940 - IT Applications", "Assignment 1 - Part A")
+input_file <- as.character(paste(input_directory, "/", "monthly_temps.csv", sep=""))
+monthly_temps <- read.csv(input_file, header = TRUE)
+
+library(ggplot2)
+monthly_Plot <- ggplot(data=monthly_temps, aes(x=month, y=mean_SST))
+#Add points to plot
+monthly_Plot <- monthly_Plot + geom_point(size=2)
+#Add regression curve to plot
+monthly_Plot <- monthly_Plot + geom_smooth(method='loess')
+
+#Set axis labels + plot title
+monthly_Plot <- monthly_Plot + ggtitle("Mean SST by month")
+monthly_Plot <- monthly_Plot + xlab("Month")
+monthly_Plot <- monthly_Plot + ylab("Mean Temperature (C)")
+
+#Change interval on x axis
+monthly_Plot <- monthly_Plot + scale_x_continuous(breaks = seq(1, 12, by=1))
+monthly_Plot 
+
+#Save plot to disk in PDF format
+ggsave(filename="monthly_plot.pdf", plot=monthly_Plot)
+
+-----------------------------
+Question 5
+-----------------------------
+#Data from http://data.okfn.org/data/core/co2-ppm#data
+#Read and create c02 frame data
+input_directory <- file.path("C:", "Users", "slaye", "Documents", "Uni", "INFT3940 - IT Applications", "Assignment 1 - Part A")
+input_file <- as.character(paste(input_directory, "/", "co2Increase.csv", sep=""))
+co2Increase_data <- read.csv(input_file, header = TRUE)
+
+#Read and create yearly SST frame data to compare against
+input_file <- as.character(paste(input_directory, "/", "yearly_temps.csv", sep=""))
+yearly_temps <- read.csv(input_file, header = TRUE)
+
+#Cleaning the data
+
+library(lubridate)
+#Change the Year column from a factor into a date + Only store the year
+co2Increase_data$Year <- year(ymd(co2Increase_data$Year))
+
+#Drop unnessecary columns Uncertainty from co2Increase_data
+co2Increase_data<- co2Increase_data[,-3]
+#Drop the first two rows from the yearly temp data frame (starts at 1957, co2Increase_data doesn't start until 1959)
+yearly_temps <- yearly_temps[-1:-2,]
+ 
+#Change column name (Annual.Increase) to more acceptable format
+colnames(co2Increase_data)[colnames(co2Increase_data) == "Annual.Increase"] <- "Annual_Increase"
+#Change column name year to Year (so they are both the same and then can be merged upon this variable)
+colnames(yearly_temps)[colnames(yearly_temps) == "year"] <- "Year"
+#Create new frame with combined data - Use data frame to plot correlation
+combined_temp_data <- merge(co2Increase_data,yearly_temps,by="Year")
+
+library(dplyr)
+#Add new column with the difference between current yearly SST mean and the SST mean from the year before (excluding first year)
+combined_temp_data <- mutate(combined_temp_data, differ = yearly_mean - lag(yearly_mean))
+
+#Plot the annual increase in co2 and the SST mean differences
+co2_Plot <- ggplot(data=combined_temp_data, aes(x=Annual_Increase, y=differ))
+#Add points to plot
+co2_Plot <- co2_Plot + geom_point(size=2)
+#Add linear model to plot
+co2_Plot <- co2_Plot + geom_smooth(method = 'lm')
+
+co2_Plot <- co2_Plot + ggtitle(expression(paste("Global mean ", CO[2], " levels by mean SST"))) #Using expression and paste functions to include a subscript 2 in the title
+co2_Plot <- co2_Plot + xlab(expression(paste("Mean ", CO[2], " levels (ppm)")))
+co2_Plot <- co2_Plot + ylab("Yearly difference in SST")
+co2_Plot
